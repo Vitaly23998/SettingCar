@@ -1,0 +1,243 @@
+using System;
+using UnityEngine;
+
+#region wheels Settings
+// настройки для одного колеса
+[Serializable]
+
+// настройка движка
+public class wheelSetting
+{
+    public WheelCollider wheel_Collider;
+    public Transform wheel_Mesh_Container;
+    [Tooltip("Двигает или нет")]
+    public bool wheelDrive = true;
+    [Tooltip("Тормозит или нет")]
+    public bool wheelHandBrake = true;
+    [Tooltip("Поворачивает или нет")]
+    public bool wheelTurn = false;
+
+    //раметр для обновление положения mesh 
+    [HideInInspector] public Vector3 wheel_World_Position;
+}
+
+// класс колес из класса выше
+[Serializable]
+public class CarWheels
+{
+    [Tooltip("Правое переднее колесо")]
+    public wheelSetting FR_Wheel;
+    [Tooltip("Левое переднее колесо")]
+    public wheelSetting FL_Wheel;
+    [Tooltip("Правое заднее колесо")]
+    public wheelSetting RR_Wheel;
+    [Tooltip("Левое заднее колесо")]
+    public wheelSetting LR_Wheel;
+}
+#endregion
+
+#region Torque Settings
+
+[Serializable]
+public class EngineSettings
+{
+    public float RPM = 0;
+    [Range(5, 420)]
+    [Tooltip("Максимальная скорость")]
+    public int maxVelocityKMh = 250;
+    [Range(0.5f, 2000.0f)]
+    [Tooltip("крутящий момент")]
+    public float Max_Nm = 3;
+    [Range(2, 12)]
+    [Tooltip("Кол-во передач")]
+    public int numberOfGears = 6;
+    [Range(0.5f, 2.0f)]
+    [Tooltip("Ускорение с повышением передачи")]
+    public float speedOfGear = 1.5f;
+}
+#endregion
+
+#region Steer Settings
+[Serializable]
+public class SteeringSettings
+{
+    [Range(0, 90)]
+    [Tooltip("Угол поворота колеса")]
+    public float steeringAngle;
+    [Range(0.01f, 0.03f)]
+    [Tooltip("Скорость поворота колеса")]
+    public float _steerSpeed;
+    [Range(0.01f, 0.5f)]
+    public float FrontWheelsSupsesion;
+    [Range(0.01f, 0.5f)]
+    public float RearWheelsSupsesion;
+}
+#endregion
+
+public class SettingCar : MonoBehaviour
+{
+
+    [Header("Настройка")]
+
+    public bool engineState = false;
+
+    public EngineSettings _engineSettings;
+    public SteeringSettings _steeringSettings;
+
+    [Space(10)]
+
+    // вывод настройки класса колес 
+    public CarWheels _wheels;
+
+    CarInput _input;
+
+    Vector3 vectorMeshPos1;
+    Vector3 vectorMeshPos2;
+    Vector3 vectorMeshPos3;
+    Vector3 vectorMeshPos4;
+
+    Quaternion quatMesh1;
+    Quaternion quatMesh2;
+    Quaternion quatMesh3;
+    Quaternion quatMesh4;
+
+    private void Awake()
+    {
+        _input = new CarInput();
+
+        _input.Player.EngineOnOff.performed += _ => EngineOnOff();
+        if (engineState)
+            EngineOnOff();
+    }
+
+    private void OnEnable()
+    {
+        _input.Enable();
+    }
+
+    private void OnDisable()
+    {
+        _input.Disable();
+    }
+
+    void Start()
+    {
+        DebugStartErrors();
+    }
+
+    void Update()
+    {
+        UpdateWheelMeshes();
+    }
+
+    private void FixedUpdate()
+    {
+        Vector2 direction = _input.Player.Move.ReadValue<Vector2>();
+
+        if (engineState == true)
+        {
+
+        TorqueAplly(direction.y * _engineSettings.Max_Nm);
+        }
+
+        SteeringWheels(direction.x);
+    }
+
+    void EngineOnOff()
+    {
+        if (engineState == true)
+        {
+            engineState = false;
+            TorqueAplly(0);
+        }
+        else
+            engineState = true;
+    }
+
+    //задаем поворот WheelColliders
+    void SteeringWheels(float directionX)
+    {
+
+         float anglelerp = Mathf.Lerp(_wheels.FR_Wheel.wheel_Collider.steerAngle, _steeringSettings.steeringAngle * directionX, _steeringSettings._steerSpeed);
+
+            if (_wheels.FR_Wheel.wheelTurn)
+            {
+                _wheels.FR_Wheel.wheel_Collider.steerAngle = anglelerp;
+            }
+            if (_wheels.FL_Wheel.wheelTurn)
+            {
+                _wheels.FL_Wheel.wheel_Collider.steerAngle = anglelerp;
+            }
+            if (_wheels.RR_Wheel.wheelTurn)
+            {
+                _wheels.RR_Wheel.wheel_Collider.steerAngle = anglelerp;
+            }
+            if (_wheels.LR_Wheel.wheelTurn)
+            {
+                _wheels.LR_Wheel.wheel_Collider.steerAngle = anglelerp;
+            }
+
+
+
+    }
+
+    //задаем вращение WheelColliders
+    void TorqueAplly(float torq)
+    {
+        _engineSettings.RPM = _wheels.FR_Wheel.wheel_Collider.rpm;
+            if (_wheels.FR_Wheel.wheelDrive)
+            {
+                _wheels.FR_Wheel.wheel_Collider.motorTorque = torq;
+            }
+            if (_wheels.FL_Wheel.wheelDrive)
+            {
+                _wheels.FL_Wheel.wheel_Collider.motorTorque = torq;
+            }
+            if (_wheels.RR_Wheel.wheelDrive)
+            {
+                _wheels.RR_Wheel.wheel_Collider.motorTorque = torq;
+            }
+            if (_wheels.LR_Wheel.wheelDrive)
+            {
+                _wheels.LR_Wheel.wheel_Collider.motorTorque = torq;
+            }
+    }
+
+    //обновляем позицию и вращение для WheelsMesh по WheelCollider
+    void UpdateWheelMeshes()
+    {
+        _wheels.FR_Wheel.wheel_Collider.GetWorldPose(out vectorMeshPos1, out quatMesh1);
+        _wheels.FR_Wheel.wheel_World_Position = _wheels.FR_Wheel.wheel_Mesh_Container.position = vectorMeshPos1;
+        _wheels.FR_Wheel.wheel_Mesh_Container.rotation = quatMesh1;
+
+        _wheels.FL_Wheel.wheel_Collider.GetWorldPose(out vectorMeshPos2, out quatMesh2);
+        _wheels.FL_Wheel.wheel_World_Position = _wheels.FL_Wheel.wheel_Mesh_Container.position = vectorMeshPos2;
+        _wheels.FL_Wheel.wheel_Mesh_Container.rotation = quatMesh2;
+
+        _wheels.RR_Wheel.wheel_Collider.GetWorldPose(out vectorMeshPos3, out quatMesh3);
+        _wheels.RR_Wheel.wheel_World_Position = _wheels.RR_Wheel.wheel_Mesh_Container.position = vectorMeshPos3;
+        _wheels.RR_Wheel.wheel_Mesh_Container.rotation = quatMesh3;
+
+        _wheels.LR_Wheel.wheel_Collider.GetWorldPose(out vectorMeshPos4, out quatMesh4);
+        _wheels.LR_Wheel.wheel_World_Position = _wheels.LR_Wheel.wheel_Mesh_Container.position = vectorMeshPos4;
+        _wheels.LR_Wheel.wheel_Mesh_Container.rotation = quatMesh4;
+    }
+
+    //проверяем все ли колеса на месте
+    void DebugStartErrors()
+    {
+        if (!_wheels.FR_Wheel.wheel_Collider || !_wheels.FL_Wheel.wheel_Collider || !_wheels.RR_Wheel.wheel_Collider || !_wheels.LR_Wheel.wheel_Collider)
+        {
+            Debug.LogError("10.Не назначен collider одного из колес в классе Wheels ");
+            transform.gameObject.SetActive(false);
+            return;
+        }
+        if (!_wheels.FR_Wheel.wheel_Mesh_Container || !_wheels.FL_Wheel.wheel_Mesh_Container || !_wheels.RR_Wheel.wheel_Mesh_Container || !_wheels.LR_Wheel.wheel_Mesh_Container)
+        {
+            Debug.LogError("11.Не назначен mesh одного из колес в классе Wheels ");
+            transform.gameObject.SetActive(false);
+            return;
+        }
+    }    
+
+}
